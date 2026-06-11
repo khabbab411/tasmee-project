@@ -13,19 +13,18 @@ logger = logging.getLogger(__name__)
 TOKEN = "8850523963:AAEDeo6_T5LeNqpTMq0kEIHozwymORvhylQ"
 GROUP_ID = -1003914929532  # ضع ID مجموعة المعلمات هنا
 
-# تخزين أسماء الطالبات (مفتاح = معرف المستخدم، القيمة = {"name": الاسم, "step": المرحلة})
+# تخزين بيانات الطالبات
 user_data = {}
 
 # ========================
 # دوال مساعدة
 # ========================
 def is_valid_name(name: str) -> bool:
-    """تتأكد أن الاسم يتكون من كلمتين على الأقل وليس نقطة أو حرف واحد"""
     name = name.strip()
-    if len(name) < 5:  # الاسم الحقيقي أطول من 4 حروف
+    if len(name) < 5:
         return False
     words = name.split()
-    if len(words) < 2:  # على الأقل اسم + لقب
+    if len(words) < 2:
         return False
     return True
 
@@ -33,7 +32,6 @@ def is_valid_name(name: str) -> bool:
 # أوامر البوت
 # ========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عند الضغط على /start"""
     if update.effective_chat.type != "private":
         return
     
@@ -48,14 +46,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"📌 الطالبة {user_id} بدأت البوت")
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """معالجة الرسائل النصية في الخاص"""
     if update.effective_chat.type != "private":
         return
     
     user_id = update.effective_user.id
     text = update.message.text.strip()
     
-    # إذا كان المستخدم ليس لديه بيانات، اطلب منه /start
     if user_id not in user_data:
         await update.message.reply_text("⚠️ أرسلي /start أولاً")
         return
@@ -63,7 +59,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     step = user_data[user_id].get("step")
     
     if step == "waiting_for_name":
-        # التحقق من صحة الاسم
         if text.lower() == "/start":
             return
         
@@ -74,7 +69,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
-        # حفظ الاسم
         user_data[user_id]["name"] = text
         user_data[user_id]["step"] = "ready"
         await update.message.reply_text(
@@ -84,22 +78,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"📝 تم حفظ اسم الطالبة {user_id}: {text}")
     
     elif step == "ready":
-        # إذا كان في مرحلة ready وأرسل نصاً، ذكره بأنه يحتاج صوتية
         await update.message.reply_text(
             "📤 أنت الآن في مرحلة إرسال التسميع.\n"
             "الرجاء إرسال **صوتية** 🎙️ وليس نصاً."
         )
-    else:
-        await update.message.reply_text("⚠️ أرسلي /start للبدء")
 
 async def handle_voice_from_student(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """استلام الصوتية من الطالبة"""
     if update.effective_chat.type != "private":
         return
     
     user_id = update.effective_user.id
     
-    # التأكد من أن الطالبة سجلت اسمها أولاً
     if user_id not in user_data or "name" not in user_data[user_id]:
         await update.message.reply_text(
             "⚠️ لم أجد اسمك.\n"
@@ -110,91 +99,102 @@ async def handle_voice_from_student(update: Update, context: ContextTypes.DEFAUL
     name = user_data[user_id]["name"]
     voice = update.message.voice
     
-    # إرسال الصوتية إلى مجموعة المعلمات
+    # إرسال الصوتية إلى مجموعة المعلمات مع معرف الطالبة
     await context.bot.send_voice(
         chat_id=GROUP_ID,
         voice=voice.file_id,
-        caption=f"📖 تسميع الطالبة: {name}\n👩‍🏫 الرجاء الرد على هذه الرسالة"
+        caption=f"🎙️ تسميع: {name}\n🆔 معرف الطالبة: {user_id}"
     )
     
     await update.message.reply_text(
         "✅ تم إرسال تسميعك إلى المعلمات.\n"
         "ستصلك الملاحظات قريباً."
     )
-    logger.info(f"🎤 تم إرسال تسميع الطالبة {name} إلى المجموعة")
+    logger.info(f"🎤 تم إرسال تسميع الطالبة {name} (ID: {user_id}) إلى المجموعة")
 
 async def handle_group_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """معالجة الردود من المعلمات في المجموعة"""
     
-    # نتأكد أن الرسالة من المجموعة الصحيحة
+    # التأكد من أن الرسالة من المجموعة الصحيحة
     if update.effective_chat.id != GROUP_ID:
         return
     
-    logger.info(f"📩 رسالة جديدة في المجموعة من {update.effective_user.first_name}")
-    
-    # نتأكد أنها رد على رسالة سابقة
+    # التأكد من أنها رد على رسالة سابقة
     if not update.message.reply_to_message:
-        logger.info("⏭️ الرسالة ليست رداً، تم تجاهلها")
+        logger.info("⏭️ رسالة جديدة (ليست رداً) - تم تجاهلها")
         return
     
-    logger.info("↩️ هذه رسالة رد")
+    logger.info("↩️ تم استلام رد في المجموعة")
+    
     original = update.message.reply_to_message
     
-    # نتأكد أن الرسالة الأصلية هي تسميع طالبة
-    if not original.caption or "📖 تسميع الطالبة:" not in original.caption:
-        logger.info("❌ الرد ليس على تسميع طالبة، تم تجاهله")
-        return
-    
-    # استخراج اسم الطالبة
-    try:
-        student_name = original.caption.split("📖 تسميع الطالبة:")[1].split("\n")[0].strip()
-        logger.info(f"🎯 استخراج اسم الطالبة: '{student_name}'")
-    except Exception as e:
-        logger.error(f"🔥 فشل استخراج الاسم: {e}")
-        return
-    
-    # البحث عن معرف الطالبة باستخدام الاسم
+    # البحث عن معرف الطالبة من caption
     student_id = None
-    for uid, data in user_data.items():
-        if data.get("name") == student_name:
-            student_id = uid
-            break
+    student_name = None
     
-    logger.info(f"🔍 user_data الحالي: {user_data}")
-    logger.info(f"👩‍🎓 الطالبة المطلوبة: '{student_name}' -> ID: {student_id}")
+    if original.caption:
+        caption = original.caption
+        logger.info(f"📝 نص الـ caption: {caption}")
+        
+        # محاولة استخراج المعرف
+        if "🆔 معرف الطالبة:" in caption:
+            try:
+                student_id_str = caption.split("🆔 معرف الطالبة:")[1].strip()
+                student_id = int(student_id_str)
+                logger.info(f"✅ تم استخراج معرف الطالبة: {student_id}")
+            except:
+                logger.error("فشل استخراج المعرف")
+        
+        # محاولة استخراج الاسم
+        if "🎙️ تسميع:" in caption:
+            try:
+                student_name = caption.split("🎙️ تسميع:")[1].split("\n")[0].strip()
+                logger.info(f"✅ تم استخراج اسم الطالبة: {student_name}")
+            except:
+                logger.error("فشل استخراج الاسم")
+    
+    # إذا لم نجد المعرف، نبحث في user_data
+    if not student_id and student_name:
+        for uid, data in user_data.items():
+            if data.get("name") == student_name:
+                student_id = uid
+                logger.info(f"✅ تم العثور على المعرف من خلال الاسم: {student_id}")
+                break
     
     if not student_id:
         await update.message.reply_text(
-            f"⚠️ لم أجد الطالبة '{student_name}' في السجل.\n"
-            f"تأكدي أنها أرسلت اسمها للبوت أولاً."
+            "⚠️ لم أتمكن من تحديد الطالبة.\n"
+            "تأكدي من الرد على رسالة البوت مباشرة."
         )
-        logger.warning(f"⚠️ لم يتم العثور على الطالبة '{student_name}'")
+        logger.warning("⚠️ لم يتم العثور على الطالبة")
         return
     
     # إرسال الرد إلى الطالبة
     try:
         if update.message.text:
             await context.bot.send_message(
-                student_id, 
-                f"📝 *ملاحظة من المعلمة:*\n{update.message.text}", 
+                student_id,
+                f"📝 *ملاحظة من المعلمة:*\n\n{update.message.text}",
                 parse_mode="Markdown"
             )
-            await update.message.reply_text(f"✅ تم إرسال ملاحظتك إلى {student_name}")
-            logger.info(f"✅ تم إرسال رد نصي إلى {student_name}")
+            await update.message.reply_text(f"✅ تم إرسال ملاحظتك إلى الطالبة")
+            logger.info(f"✅ تم إرسال رد نصي إلى {student_id}")
             
         elif update.message.voice:
             await context.bot.send_voice(
-                student_id, 
-                update.message.voice.file_id, 
+                student_id,
+                update.message.voice.file_id,
                 caption="🎙️ *ملاحظة صوتية من المعلمة*",
                 parse_mode="Markdown"
             )
-            await update.message.reply_text(f"✅ تم إرسال الملاحظة الصوتية إلى {student_name}")
-            logger.info(f"✅ تم إرسال رد صوتي إلى {student_name}")
+            await update.message.reply_text(f"✅ تم إرسال الملاحظة الصوتية")
+            logger.info(f"✅ تم إرسال رد صوتي إلى {student_id}")
+        else:
+            logger.info("الرد ليس نصاً ولا صوتية - تم تجاهله")
             
     except Exception as e:
         logger.error(f"💥 فشل إرسال الرد: {e}")
-        await update.message.reply_text(f"⚠️ فشل إرسال الملاحظة: {str(e)}")
+        await update.message.reply_text(f"⚠️ فشل إرسال الملاحظة: {str(e)[:100]}")
 
 # ========================
 # تشغيل البوت
