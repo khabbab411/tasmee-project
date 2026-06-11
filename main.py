@@ -8,16 +8,16 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # ========================
-# الإعدادات الأساسية
+# الإعدادات الأساسية (✏️ غير هذه فقط)
 # ========================
-TOKEN = "8850523963:AAEjjD2hElr0iXWbl2N84jSJkXzyCv1ejck"
-GROUP_ID = -1003914929532 # ضع ID مجموعة المعلمات هنا
+TOKEN = "8850523963:AAEjjD2hElr0iXWbl2N84jSJkXzyCv1ejck"  # <--- ضع التوكن بين التنصيصات
+GROUP_ID = -1003914929532  # <--- ضع ID مجموعة المعلمات هنا
 
-# تخزين بيانات الطالبات
-user_data = {}
-
-# تخزين مؤقت لانتظار رد المعلمة
-waiting_for_reply = {}  # {teacher_id: {"student_id": xxx, "type": "text" or "voice"}}
+# ========================
+# المتغيرات العامة
+# ========================
+user_data = {}  # حفظ بيانات الطالبات
+waiting_for_reply = {}  # حفظ انتظار رد المعلمة
 
 # ========================
 # دوال مساعدة
@@ -135,51 +135,57 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     teacher_id = update.effective_user.id
     teacher_name = update.effective_user.first_name
+    group_id = update.effective_chat.id
     
-    # استخراج المعلومات من البيانات
     parts = data.split("_")
     if len(parts) >= 3:
-        reply_type = parts[1]  # text or voice
+        reply_type = parts[1]
         student_id = int(parts[2])
-        
-        # محاولة استخراج الاسم (قد يحتوي على مسافات)
         student_name = "_".join(parts[3:]) if len(parts) > 3 else "الطالبة"
         
-        # تخزين أن هذه المعلمة بصدد الرد على طالبة معينة
+        # تخزين أن هذه المعلمة بصدد الرد
         waiting_for_reply[teacher_id] = {
             "student_id": student_id,
             "student_name": student_name,
-            "type": reply_type
+            "type": reply_type,
+            "group_id": group_id
         }
         
+        # إرسال رسالة في المجموعة تطلب الرد
         if reply_type == "text":
             await query.edit_message_caption(
-                caption=f"🎙️ تسميع الطالبة: {student_name}\n\n✏️ **الآن اكتبي ردك النصي** (أرسلي الرسالة هنا مباشرة)",
+                caption=f"🎙️ تسميع الطالبة: {student_name}\n\n✏️ **اكتبي ردك النصي في المجموعة**",
                 parse_mode="Markdown"
             )
             await context.bot.send_message(
-                teacher_id,
-                f"✏️ أرسلي الرد النصي للطالبة {student_name}:"
+                group_id,
+                f"✏️ المعلمة {teacher_name} تستعد للرد على {student_name}\nاكتبي ردك هنا 👇"
             )
         else:
             await query.edit_message_caption(
-                caption=f"🎙️ تسميع الطالبة: {student_name}\n\n🎙️ **الآن أرسلي رداً صوتياً**",
+                caption=f"🎙️ تسميع الطالبة: {student_name}\n\n🎙️ **أرسلي رداً صوتياً في المجموعة**",
                 parse_mode="Markdown"
             )
             await context.bot.send_message(
-                teacher_id,
-                f"🎙️ أرسلي الرد الصوتي للطالبة {student_name}:"
+                group_id,
+                f"🎙️ المعلمة {teacher_name} تستعد للرد على {student_name}\nأرسلي ردك الصوتي هنا 👇"
             )
         
-        logger.info(f"📝 المعلمة {teacher_name} بدأت الرد على {student_name}")
+        logger.info(f"📝 المعلمة {teacher_name} طُلب منها الرد على {student_name}")
 
 # ========================
-# استلام الرد من المعلمة (بعد الضغط على الزر)
+# استلام الرد من المعلمة (في المجموعة بعد الزر)
 # ========================
-async def handle_teacher_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_group_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # نتأكد أن الرسالة من المجموعة الصحيحة
+    if update.effective_chat.id != GROUP_ID:
+        return
+    
     teacher_id = update.effective_user.id
     
+    # هل هذه المعلمة في انتظار الرد؟
     if teacher_id not in waiting_for_reply:
+        # ليست في انتظار الرد، نتجاهل
         return
     
     reply_info = waiting_for_reply[teacher_id]
@@ -189,33 +195,29 @@ async def handle_teacher_reply(update: Update, context: ContextTypes.DEFAULT_TYP
     
     # إرسال الرد إلى الطالبة
     try:
-        if reply_type == "text":
-            # رد نصي
-            text = update.message.text
+        if reply_type == "text" and update.message.text:
             await context.bot.send_message(
                 student_id,
-                f"📝 *ملاحظة من المعلمة:*\n\n{text}",
+                f"📝 *ملاحظة من المعلمة:*\n\n{update.message.text}",
                 parse_mode="Markdown"
             )
             await update.message.reply_text(f"✅ تم إرسال ملاحظتك إلى {student_name}")
             logger.info(f"✅ تم إرسال رد نصي إلى {student_name} (ID: {student_id})")
             
         elif reply_type == "voice" and update.message.voice:
-            # رد صوتي
-            voice = update.message.voice
             await context.bot.send_voice(
                 student_id,
-                voice.file_id,
+                update.message.voice.file_id,
                 caption="🎙️ *ملاحظة صوتية من المعلمة*",
                 parse_mode="Markdown"
             )
             await update.message.reply_text(f"✅ تم إرسال الملاحظة الصوتية إلى {student_name}")
             logger.info(f"✅ تم إرسال رد صوتي إلى {student_name} (ID: {student_id})")
         else:
-            await update.message.reply_text("⚠️ يرجى إرسال رد بالطريقة المطلوبة (نص أو صوت)")
+            await update.message.reply_text(f"⚠️ يرجى إرسال {('نص' if reply_type == 'text' else 'صوتية')} كما هو مطلوب")
             return
         
-        # حذف المعلمة من قائمة الانتظار
+        # حذف من قائمة الانتظار
         del waiting_for_reply[teacher_id]
         
     except Exception as e:
@@ -238,7 +240,7 @@ def main():
     
     # معالجة الأزرار وردود المعلمات
     application.add_handler(CallbackQueryHandler(handle_callback))
-    application.add_handler(MessageHandler(filters.ALL, handle_teacher_reply))
+    application.add_handler(MessageHandler(filters.ALL, handle_group_messages))
     
     logger.info("🚀 البوت بدأ العمل...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
