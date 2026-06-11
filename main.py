@@ -3,8 +3,8 @@ from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # المتغيرات
-TOKEN = "ضع_توكن_البوت_هنا"
-GROUP_ID = -1001234567890  # ضع ID مجموعة المعلمات
+TOKEN = "8850523963:AAEDeo6_T5LeNqpTMq0kEIHozwymORvhylQ"
+GROUP_ID = -1003914929532  # ضع ID مجموعة المعلمات
 
 # تخزين مؤقت لأسماء الطالبات (في مشروع حقيقي استخدم قاعدة بيانات)
 user_names = {}
