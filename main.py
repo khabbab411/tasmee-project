@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 # ========================
 # الإعدادات الأساسية
 # ========================
-TOKEN = "8850523963:AAEDeo6_T5LeNqpTMq0kEIHozwymORvhylQ"
-GROUP_ID = -1003914929532  # ضع ID مجموعة المعلمات هنا
+TOKEN = "8850523963:AAEjjD2hElr0iXWbl2N84jSJkXzyCv1ejck"
+GROUP_ID = -1003914929532 # ضع ID مجموعة المعلمات هنا
 
 # تخزين بيانات الطالبات
 user_data = {}
