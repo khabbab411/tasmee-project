@@ -3,8 +3,8 @@ from pathlib import Path
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-TOKEN = "PUT_YOUR_BOT_TOKEN_HERE"
-GROUP_ID = -1003846785454
+TOKEN = "8850523963:AAEjjD2hElr0iXWbl2N84jSJkXzyCv1ejck"
+GROUP_ID = -1003914929532
 
 USERS_FILE = "users.json"
 MAP_FILE = "message_map.json"
