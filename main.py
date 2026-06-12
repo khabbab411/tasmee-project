@@ -3,7 +3,7 @@ from pathlib import Path
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-TOKEN = "8850523963:AAEjjD2hElr0iXWbl2N84jSJkXzyCv1ejck"
+TOKEN = "8850523963:AAFq_4TqBSpdbWFwYY-T3vrlMkcEFsvk5DQ"
 GROUP_ID = -1003914929532
 
 USERS_FILE = "users.json"
