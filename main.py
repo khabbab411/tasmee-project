@@ -17,8 +17,8 @@ user_data = {}  # {user_id: {"name": "الاسم", "step": "المرحلة"}}
 waiting_for_reply = {}  # {teacher_id: {"student_id": xxx, "student_name": xxx, "type": "text/voice"}}
 
 # --- 3. الإعدادات (ضع بياناتك هنا) ---
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8850523963:AAFq_4TqBSpdbWFwYY-T3vrlMkcEFsvk5DQ")
-GROUP_ID = int(os.environ.get("TEACHERS_GROUP_ID", "-1003914929532"))
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8871655491:AAEWD5WQxJUeBBngKxe8u2OJonKcVsQo4sg")
+GROUP_ID = int(os.environ.get("TEACHERS_GROUP_ID", "-1004344713055"))
 
 # --- 4. الدوال المساعدة ---
 def is_valid_name(name: str) -> bool:
