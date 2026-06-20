@@ -37,8 +37,8 @@ def get_user(user_id):
     return None
 
 # --- 3. الإعدادات ---
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "ضع_التوكن_هنا")
-GROUP_ID = int(os.environ.get("TEACHERS_GROUP_ID", "ضع_ID_المجموعة_هنا"))
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8871655491:AAEWD5WQxJUeBBngKxe8u2OJonKcVsQo4sg")
+GROUP_ID = int(os.environ.get("TEACHERS_GROUP_ID", "-1004344713055"))
 
 # مخزن مؤقت لانتظار الرد (لا يحتاج قاعدة بيانات لأنه لحظي)
 waiting_for_reply = {}
