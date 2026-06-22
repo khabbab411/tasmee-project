@@ -75,8 +75,8 @@ def save_submission(user_id, submission_type, file_id=None, text_content=None, o
     return submission_id
 
 # --- 3. الإعدادات ---
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "ضع_التوكن_هنا")
-GROUP_ID = int(os.environ.get("TEACHERS_GROUP_ID", "ضع_ID_المجموعة_هنا"))
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8871655491:AAEWD5WQxJUeBBngKxe8u2OJonKcVsQo4sg")
+GROUP_ID = int(os.environ.get("TEACHERS_GROUP_ID", "-1004344713055"))
 
 waiting_for_reply = {}
 pending_user_actions = {}
