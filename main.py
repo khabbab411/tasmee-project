@@ -2,6 +2,7 @@ import logging
 import os
 import time
 import sqlite3
+import asyncio
 from datetime import datetime
 import pytz
 
@@ -67,7 +68,9 @@ def update_user_state(user_id, state):
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8871655491:AAEWD5WQxJUeBBngKxe8u2OJonKcVsQo4sg")
 GROUP_ID = int(os.environ.get("TEACHERS_GROUP_ID", "-1004344713055"))
 
-waiting_for_reply = {} # {teacher_id: {"student_id": xxx, ...}}
+# مخزن مؤقت لانتظار ردود المعلمات
+# {teacher_id: {"student_id": int, "student_name": str, "submission_id": int, "submission_type": str, "type": "text/voice"}}
+waiting_for_reply = {}
 pending_user_actions = {}
 
 # --- 4. لوحات المفاتيح الثابتة (Reply Keyboard) ---
@@ -89,92 +92,126 @@ async def start(update: Update, context):
     if update.effective_chat.type == "private":
         user = get_user(user_id)
         if user and user['name']:
-            await update.message.reply_text(f"أهلاً بك مجدداً يا {user['name']}!", reply_markup=get_main_menu_keyboard())
+            await update.message.reply_text(f"أهلاً بك مجدداً يا {user['name']}! 👋", reply_markup=get_main_menu_keyboard())
             update_user_state(user_id, "main_menu")
         else:
             save_user(user_id, "", "awaiting_name")
-            await update.message.reply_text("أهلاً بك! الرجاء إدخال اسمك الكامل (ثلاثي) للبدء.", reply_markup=ReplyKeyboardRemove())
+            await update.message.reply_text("أهلاً بك في حلقة القرآن! 🌸\nالرجاء إدخال اسمك الكامل (ثلاثي) للبدء.", reply_markup=ReplyKeyboardRemove())
 
 async def handle_text(update: Update, context):
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
     chat_type = update.effective_chat.type
     text = update.message.text
     user = get_user(user_id)
 
+    # معالجة الرسائل الخاصة (الطالبات)
     if chat_type == "private":
         if user and user.get("state") == "awaiting_name":
             if len(text.strip().split()) >= 2:
                 save_user(user_id, text, "main_menu")
-                await update.message.reply_text(f"تم حفظ اسمك يا {text}.", reply_markup=get_main_menu_keyboard())
+                await update.message.reply_text(f"تم تسجيلك بنجاح يا {text}. يمكنك الآن البدء باستخدام البوت.", reply_markup=get_main_menu_keyboard())
             else:
-                await update.message.reply_text("الاسم قصير جداً، يرجى إرسال اسمك الثلاثي.")
+                await update.message.reply_text("الاسم قصير جداً، يرجى إرسال اسمك الثلاثي لضمان دقة السجلات.")
+        
         elif text == "🎤 إرسال تسميع":
             await update.message.reply_text("الرجاء اختيار نوع التسميع:", reply_markup=get_submission_type_keyboard())
             update_user_state(user_id, "awaiting_submission_type")
+        
         elif text == "❓ سؤال المعلم":
             await update.message.reply_text("الرجاء اختيار نوع السؤال:", reply_markup=get_question_type_keyboard())
             update_user_state(user_id, "awaiting_question_type")
+        
         elif text == "🔙 رجوع للقائمة الرئيسية":
             pending_user_actions.pop(user_id, None)
-            await update.message.reply_text("أهلاً بك في القائمة الرئيسية.", reply_markup=get_main_menu_keyboard())
+            await update.message.reply_text("تمت العودة للقائمة الرئيسية.", reply_markup=get_main_menu_keyboard())
             update_user_state(user_id, "main_menu")
+        
         elif text == "📖 ورد الحفظ":
-            await update.message.reply_text("ممتاز! الرجاء تسجيل ورد الحفظ الآن.", reply_markup=get_submission_type_keyboard())
+            await update.message.reply_text("تفضلي يا غالية، بانتظار تسجيل ورد الحفظ الآن. 📖", reply_markup=get_submission_type_keyboard())
             update_user_state(user_id, "awaiting_hifz_submission")
+        
         elif text == "🔄 ورد المراجعة":
-            await update.message.reply_text("ممتاز! الرجاء تسجيل ورد المراجعة الآن.", reply_markup=get_submission_type_keyboard())
+            await update.message.reply_text("تفضلي يا غالية، بانتظار تسجيل ورد المراجعة الآن. 🔄", reply_markup=get_submission_type_keyboard())
             update_user_state(user_id, "awaiting_murajaah_submission")
+        
         elif text == "🎙️ سؤال صوتي":
-            await update.message.reply_text("الرجاء تسجيل سؤالك الصوتي الآن.", reply_markup=get_question_type_keyboard())
+            await update.message.reply_text("الرجاء تسجيل سؤالك الصوتي الآن. 🎙️", reply_markup=get_question_type_keyboard())
             update_user_state(user_id, "awaiting_voice_question")
+        
         elif text == "✍️ سؤال نصي":
-            await update.message.reply_text("الرجاء كتابة سؤالك النصي الآن.", reply_markup=get_question_type_keyboard())
+            await update.message.reply_text("الرجاء كتابة سؤالك النصي الآن. ✍️", reply_markup=get_question_type_keyboard())
             update_user_state(user_id, "awaiting_text_question")
+        
         elif user and user.get("state") == "awaiting_text_question":
             pending_user_actions[user_id] = {"type": "question", "subtype": "سؤال_نصي", "text_content": text, "file_id": None, "original_message_id": update.message.message_id}
-            await update.message.reply_text("وصلني سؤالك النصي، هل أنت متأكد من الإرسال؟", 
-                                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ إرسال للمعلمة", callback_data="confirm_send")], [InlineKeyboardButton("❌ إلغاء", callback_data="confirm_resend")]]))
+            await update.message.reply_text("وصلني سؤالك النصي، هل تودين إرساله للمعلمة؟", 
+                                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ إرسال", callback_data="confirm_send")], [InlineKeyboardButton("❌ إلغاء", callback_data="confirm_resend")]]))
             update_user_state(user_id, "awaiting_confirmation")
 
-    elif chat_type == "group" and update.effective_chat.id == GROUP_ID:
+    # معالجة ردود المعلمات في المجموعة
+    elif chat_id == GROUP_ID:
         teacher_id = update.effective_user.id
         if teacher_id in waiting_for_reply:
             data = waiting_for_reply[teacher_id]
             if data["type"] == "text":
-                await context.bot.send_message(chat_id=data["student_id"], text=f"💌 وصلك رد من المعلمة بخصوص: [{data['submission_type']}]\n\n{text}")
+                # إرسال الرد للطالبة
+                await context.bot.send_message(
+                    chat_id=data["student_id"], 
+                    text=f"💌 وصلك رد من المعلمة بخصوص: [{data['submission_type']}]\n\n{text}"
+                )
+                # تحديث قاعدة البيانات
                 conn = sqlite3.connect(DATABASE_NAME)
                 c = conn.cursor()
                 c.execute("UPDATE submissions SET status='replied', teacher_reply_type='text', teacher_reply_content=? WHERE submission_id=?", (text, data["submission_id"]))
                 conn.commit()
                 conn.close()
+                # تأكيد للمعلمة
                 await update.message.reply_text(f"✅ تم إرسال الرد النصي إلى {data['student_name']}")
                 del waiting_for_reply[teacher_id]
 
 async def handle_voice(update: Update, context):
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
     chat_type = update.effective_chat.type
     user = get_user(user_id)
 
+    # معالجة الصوتيات من الطالبات
     if chat_type == "private":
         if user and user.get("state") in ["awaiting_hifz_submission", "awaiting_murajaah_submission", "awaiting_voice_question"]:
             sub_type = "حفظ" if user["state"] == "awaiting_hifz_submission" else "مراجعة" if user["state"] == "awaiting_murajaah_submission" else "سؤال_صوتي"
-            pending_user_actions[user_id] = {"type": "submission" if "submission" in user["state"] else "question", "subtype": sub_type, "file_id": update.message.voice.file_id, "text_content": None, "original_message_id": update.message.message_id}
-            await update.message.reply_text("وصلني تسجيلك، يمكنك الاستماع إليه بالأعلى للتأكد.", 
-                                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ إرسال للمعلمة", callback_data="confirm_send")], [InlineKeyboardButton("❌ إعادة التسجيل", callback_data="confirm_resend")]]))
+            pending_user_actions[user_id] = {
+                "type": "submission" if "submission" in user["state"] else "question", 
+                "subtype": sub_type, 
+                "file_id": update.message.voice.file_id, 
+                "text_content": None, 
+                "original_message_id": update.message.message_id
+            }
+            await update.message.reply_text(
+                "وصلني تسجيلك، يمكنك الاستماع إليه بالأعلى للتأكد قبل الإرسال.", 
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("✅ إرسال للمعلمة", callback_data="confirm_send")],
+                    [InlineKeyboardButton("❌ إعادة التسجيل", callback_data="confirm_resend")]
+                ])
+            )
             update_user_state(user_id, "awaiting_confirmation")
 
-    elif chat_type == "group" and update.effective_chat.id == GROUP_ID:
+    # معالجة الردود الصوتية من المعلمات
+    elif chat_id == GROUP_ID:
         teacher_id = update.effective_user.id
         if teacher_id in waiting_for_reply:
             data = waiting_for_reply[teacher_id]
             if data["type"] == "voice":
+                # إرسال الصوتية للطالبة
                 await context.bot.send_voice(chat_id=data["student_id"], voice=update.message.voice.file_id)
                 await context.bot.send_message(chat_id=data["student_id"], text=f"💌 وصلك رد صوتي من المعلمة بخصوص: [{data['submission_type']}]")
+                # تحديث قاعدة البيانات
                 conn = sqlite3.connect(DATABASE_NAME)
                 c = conn.cursor()
                 c.execute("UPDATE submissions SET status='replied', teacher_reply_type='voice', teacher_reply_content=? WHERE submission_id=?", (update.message.voice.file_id, data["submission_id"]))
                 conn.commit()
                 conn.close()
+                # تأكيد للمعلمة
                 await update.message.reply_text(f"✅ تم إرسال الرد الصوتي إلى {data['student_name']}")
                 del waiting_for_reply[teacher_id]
 
@@ -183,6 +220,7 @@ async def handle_callback(update: Update, context):
     callback_data = query.data
     await query.answer()
 
+    # تأكيد إرسال الطالبة
     if callback_data == "confirm_send":
         user_id = query.from_user.id
         user = get_user(user_id)
@@ -197,40 +235,55 @@ async def handle_callback(update: Update, context):
             conn.commit()
             conn.close()
             
-            caption = f"{'🎤 تسميع جديد' if action['type'] == 'submission' else '❓ سؤال جديد'} - {action['subtype']}: {user['name']}\nID: {user_id}"
-            markup = InlineKeyboardMarkup([[InlineKeyboardButton("رد نصي ✍️", callback_data=f"r_t_{sub_id}"), InlineKeyboardButton("رد صوتي 🎙️", callback_data=f"r_v_{sub_id}")]])
+            title = "🎤 تسميع جديد" if action['type'] == 'submission' else "❓ سؤال جديد"
+            caption = f"{title} - {action['subtype']}\nالطالبة: {user['name']}\nID: {user_id}"
+            
+            markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton("رد نصي ✍️", callback_data=f"r_t_{sub_id}"), 
+                 InlineKeyboardButton("رد صوتي 🎙️", callback_data=f"r_v_{sub_id}")]
+            ])
             
             if action["file_id"]:
                 await context.bot.send_voice(chat_id=GROUP_ID, voice=action["file_id"], caption=caption, reply_markup=markup)
             else:
                 await context.bot.send_message(chat_id=GROUP_ID, text=f"{caption}\n\n{action['text_content']}", reply_markup=markup)
             
-            await query.edit_message_text("✅ تم الإرسال للمعلمة بنجاح.")
+            await query.edit_message_text("✅ تم الإرسال للمعلمة بنجاح. سيصلك الرد هنا قريباً.")
             update_user_state(user_id, "main_menu")
 
     elif callback_data == "confirm_resend":
         user_id = query.from_user.id
         pending_user_actions.pop(user_id, None)
-        await query.edit_message_text("تم الإلغاء. يمكنك البدء من جديد من القائمة.")
+        await query.edit_message_text("تم إلغاء الإرسال. يمكنك التسجيل مرة أخرى.")
         update_user_state(user_id, "main_menu")
 
+    # ضغط المعلمة على زر الرد
     elif callback_data.startswith("r_"):
         parts = callback_data.split("_")
         sub_id = int(parts[2])
         r_type = "text" if parts[1] == "t" else "voice"
+        
         conn = sqlite3.connect(DATABASE_NAME)
         c = conn.cursor()
         c.execute("SELECT s.user_id, s.name, sub.submission_type FROM submissions sub JOIN students s ON sub.user_id = s.user_id WHERE sub.submission_id=?", (sub_id,))
         row = c.fetchone()
         conn.close()
+        
         if row:
-            waiting_for_reply[query.from_user.id] = {"student_id": row[0], "student_name": row[1], "submission_id": sub_id, "submission_type": row[2], "type": r_type}
-            msg = f"الآن أرسل الرد {'النصي' if r_type == 'text' else 'الصوتي'} لـ {row[1]}:"
-            # تعديل الرسالة الأصلية بدلاً من إرسال رسالة جديدة
+            waiting_for_reply[query.from_user.id] = {
+                "student_id": row[0], 
+                "student_name": row[1], 
+                "submission_id": sub_id, 
+                "submission_type": row[2], 
+                "type": r_type
+            }
+            msg = f"⏳ بانتظار الرد {'النصي' if r_type == 'text' else 'الصوتي'} لـ {row[1]}..."
+            
+            # تعديل الرسالة الأصلية لطلب الرد
             if query.message.voice:
-                await query.edit_message_caption(caption=f"{query.message.caption}\n\n⏳ {msg}")
+                await query.edit_message_caption(caption=f"{query.message.caption}\n\n{msg}")
             else:
-                await query.edit_message_text(text=f"{query.message.text}\n\n⏳ {msg}")
+                await query.edit_message_text(text=f"{query.message.text}\n\n{msg}")
 
 async def report_command(update: Update, context):
     if update.effective_chat.id != GROUP_ID: return
@@ -240,24 +293,34 @@ async def report_command(update: Update, context):
     c.execute("SELECT s.name, sub.submission_type FROM submissions sub JOIN students s ON sub.user_id = s.user_id WHERE DATE(sub.timestamp) = ?", (today,))
     rows = c.fetchall()
     conn.close()
+    
     if not rows:
-        await update.message.reply_text("لا توجد بيانات لليوم.")
+        await update.message.reply_text("لا توجد إحصائيات مسجلة لليوم حتى الآن.")
         return
-    report = f"📊 إحصائية اليوم ({today}):\n"
+        
     stats = {}
     for name, stype in rows:
         if name not in stats: stats[name] = {}
         stats[name][stype] = stats[name].get(stype, 0) + 1
+        
+    report = f"📊 إحصائية حلقة اليوم ({today}):\n\n"
     for i, (name, s) in enumerate(stats.items(), 1):
         details = [f"{k}{f': {v}' if v > 1 else ''}" for k, v in s.items()]
         report += f"{i}. {name} ({', '.join(details)})\n"
+    
     await update.message.reply_text(report)
 
 def main():
     init_db()
     keep_alive()
-    time.sleep(10)
+    
+    # انتظار طويل لتجنب Conflict في Render
+    print("⏳ جاري تنظيف الاتصالات القديمة (20 ثانية)...")
+    time.sleep(20)
+    
     app = Application.builder().token(TOKEN).build()
+    
+    # المعالجات
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("report", report_command))
     app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_text))
@@ -265,11 +328,14 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.TEXT & filters.Chat(GROUP_ID), handle_text))
     app.add_handler(MessageHandler(filters.VOICE & filters.Chat(GROUP_ID), handle_voice))
+
+    print("🚀 البوت انطلق بنجاح!")
     while True:
         try:
             app.run_polling(drop_pending_updates=True, close_loop=False)
         except Exception as e:
-            logger.error(f"Error: {e}")
+            logger.error(f"⚠️ خطأ: {e}")
             time.sleep(5)
 
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+    main()
