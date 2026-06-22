@@ -171,16 +171,14 @@ async def handle_voice(update: Update, context):
         if teacher_id in waiting_for_reply:
             data = waiting_for_reply[teacher_id]
             if data["type"] == "voice":
-                # إرسال الرد الصوتي مع الوصف مدمجاً (Caption)
                 caption = f"💌 وصلك رد صوتي من المعلمة بخصوص: [{data['submission_type']}]"
                 await context.bot.send_voice(chat_id=data["student_id"], voice=update.message.voice.file_id, caption=caption)
-                
                 conn = sqlite3.connect(DATABASE_NAME)
                 c = conn.cursor()
                 c.execute("UPDATE submissions SET status='replied', teacher_reply_type='voice', teacher_reply_content=? WHERE submission_id=?", (update.message.voice.file_id, data["submission_id"]))
                 conn.commit()
                 conn.close()
-                await update.message.reply_text(f"✅ تم إرسال الرد الصوتي المدمج إلى {data['student_name']}")
+                await update.message.reply_text(f"✅ تم إرسال الرد الصوتي إلى {data['student_name']}")
                 del waiting_for_reply[teacher_id]
 
 async def handle_callback(update: Update, context):
@@ -195,6 +193,7 @@ async def handle_callback(update: Update, context):
             action = pending_user_actions.pop(user_id)
             conn = sqlite3.connect(DATABASE_NAME)
             c = conn.cursor()
+            # حفظ الوقت بصيغة ISO وتاريخ اليوم بشكل منفصل لسهولة الإحصاء
             timestamp = datetime.now(MECCA_TIMEZONE).isoformat()
             c.execute("INSERT INTO submissions (user_id, submission_type, file_id, text_content, timestamp, status, original_message_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
                       (user_id, action["subtype"], action["file_id"], action["text_content"], timestamp, 'pending', action["original_message_id"]))
@@ -203,7 +202,8 @@ async def handle_callback(update: Update, context):
             conn.close()
             
             title = "🎤 تسميع جديد" if action['type'] == 'submission' else "❓ سؤال جديد"
-            caption = f"{title} - {action['subtype']}\nالطالبة: {user['name']}\nID: {user_id}"
+            # إزالة الـ ID من الكابشن كما طلب المستخدم
+            caption = f"{title} - {action['subtype']}\nالطالبة: {user['name']}"
             markup = InlineKeyboardMarkup([[InlineKeyboardButton("رد نصي ✍️", callback_data=f"r_t_{sub_id}"), InlineKeyboardButton("رد صوتي 🎙️", callback_data=f"r_v_{sub_id}")]])
             
             if action["file_id"]:
@@ -241,18 +241,27 @@ async def report_command(update: Update, context):
     if update.effective_chat.id != GROUP_ID: return
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
-    today = datetime.now(MECCA_TIMEZONE).strftime('%Y-%m-%d')
-    c.execute("SELECT s.name, sub.submission_type FROM submissions sub JOIN students s ON sub.user_id = s.user_id WHERE DATE(sub.timestamp) = ?", (today,))
+    # جلب إحصائيات اليوم بتوقيت مكة المكرمة
+    today_prefix = datetime.now(MECCA_TIMEZONE).strftime('%Y-%m-%d')
+    c.execute("SELECT s.name, sub.submission_type FROM submissions sub JOIN students s ON sub.user_id = s.user_id WHERE sub.timestamp LIKE ?", (f"{today_prefix}%",))
     rows = c.fetchall()
     conn.close()
+    
     if not rows:
-        await update.message.reply_text("لا توجد إحصائيات لليوم.")
+        await update.message.reply_text(f"لا توجد إحصائيات لليوم ({today_prefix}).")
         return
+        
     stats = {}
+    total_submissions = 0
     for name, stype in rows:
+        total_submissions += 1
         if name not in stats: stats[name] = {}
         stats[name][stype] = stats[name].get(stype, 0) + 1
-    report = f"📊 إحصائية حلقة اليوم ({today}):\n\n"
+    
+    report = f"📊 إحصائية حلقة اليوم ({today_prefix}):\n"
+    report += f"✅ إجمالي التفاعلات: {total_submissions}\n"
+    report += f"👥 عدد الطالبات: {len(stats)}\n\n"
+    
     for i, (name, s) in enumerate(stats.items(), 1):
         details = [f"{k}{f': {v}' if v > 1 else ''}" for k, v in s.items()]
         report += f"{i}. {name} ({', '.join(details)})\n"
