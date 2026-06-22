@@ -67,7 +67,7 @@ def update_user_state(user_id, state):
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8871655491:AAEWD5WQxJUeBBngKxe8u2OJonKcVsQo4sg")
 GROUP_ID = int(os.environ.get("TEACHERS_GROUP_ID", "-1004344713055"))
 
-waiting_for_reply = {}
+waiting_for_reply = {} # {teacher_id: {"student_id": xxx, ...}}
 pending_user_actions = {}
 
 # --- 4. لوحات المفاتيح الثابتة (Reply Keyboard) ---
@@ -226,7 +226,11 @@ async def handle_callback(update: Update, context):
         if row:
             waiting_for_reply[query.from_user.id] = {"student_id": row[0], "student_name": row[1], "submission_id": sub_id, "submission_type": row[2], "type": r_type}
             msg = f"الآن أرسل الرد {'النصي' if r_type == 'text' else 'الصوتي'} لـ {row[1]}:"
-            await context.bot.send_message(chat_id=GROUP_ID, text=msg)
+            # تعديل الرسالة الأصلية بدلاً من إرسال رسالة جديدة
+            if query.message.voice:
+                await query.edit_message_caption(caption=f"{query.message.caption}\n\n⏳ {msg}")
+            else:
+                await query.edit_message_text(text=f"{query.message.text}\n\n⏳ {msg}")
 
 async def report_command(update: Update, context):
     if update.effective_chat.id != GROUP_ID: return
