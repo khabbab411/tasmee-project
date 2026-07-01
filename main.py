@@ -3,6 +3,7 @@ import os
 import time
 import sqlite3
 import asyncio
+import threading
 from datetime import datetime
 import pytz
 
@@ -76,13 +77,9 @@ waiting_for_reply = {}
 pending_user_actions = {}
 
 # --- دالة إرسال التسميع إلى لوحة الويب ---
-def push_to_web_dashboard(student_telegram_id, student_name, submission_type, file_id=None, text_content=None, duration=None):
-    """إرسال التسميع الجديد إلى لوحة الويب عبر API"""
-    if not WEB_DASHBOARD_URL:
-        logger.info("[Web Dashboard] URL not configured, skipping push.")
-        return
+def _push_to_web_sync(student_telegram_id, student_name, submission_type, file_id, text_content, duration):
+    """إرسال التسميع إلى لوحة الويب (تعمل في thread منفصل)"""
     try:
-        # تحويل نوع التسميع للصيغة المتوافقة مع لوحة الويب
         type_map = {
             "حفظ": "hifz",
             "مراجعة": "murajaah",
@@ -90,7 +87,6 @@ def push_to_web_dashboard(student_telegram_id, student_name, submission_type, fi
             "سؤال_نصي": "question_text",
         }
         web_type = type_map.get(submission_type, "hifz")
-        
         payload = {
             "studentTelegramId": student_telegram_id,
             "studentName": student_name,
@@ -107,6 +103,14 @@ def push_to_web_dashboard(student_telegram_id, student_name, submission_type, fi
             logger.warning(f"[Web Dashboard] Push failed: {resp.status_code} - {resp.text}")
     except Exception as e:
         logger.error(f"[Web Dashboard] Error pushing submission: {e}")
+
+def push_to_web_dashboard(student_telegram_id, student_name, submission_type, file_id=None, text_content=None, duration=None):
+    """إرسال التسميع إلى لوحة الويب في خلفية منفصلة (لا يعطل البوت)"""
+    if not WEB_DASHBOARD_URL:
+        logger.info("[Web Dashboard] URL not configured, skipping push.")
+        return
+    t = threading.Thread(target=_push_to_web_sync, args=(student_telegram_id, student_name, submission_type, file_id, text_content, duration), daemon=True)
+    t.start()
 
 # --- 4. لوحات المفاتيح الثابتة (Reply Keyboard) ---
 def get_main_menu_keyboard():
