@@ -322,7 +322,17 @@ async def report_command(update: Update, context):
 def main():
     init_db()
     keep_alive()
-    time.sleep(20)
+    
+    # حذف أي webhook قديم وإلغاء أي جلسة سابقة قبل البدء
+    import httpx
+    try:
+        httpx.post(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook", params={"drop_pending_updates": True})
+        logger.info("[Bot] Cleared old webhook/session before starting.")
+    except Exception as e:
+        logger.warning(f"[Bot] Could not clear webhook: {e}")
+    
+    time.sleep(5)  # انتظار قصير لضمان تحرير الجلسة القديمة
+    
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("report", report_command))
@@ -331,11 +341,8 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.TEXT & filters.Chat(GROUP_ID), handle_text))
     app.add_handler(MessageHandler(filters.VOICE & filters.Chat(GROUP_ID), handle_voice))
-    while True:
-        try:
-            app.run_polling(drop_pending_updates=True, close_loop=False)
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            time.sleep(5)
+    
+    logger.info("[Bot] Starting polling...")
+    app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__": main()
