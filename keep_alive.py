@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, render_template
 from threading import Thread
 import os
 import logging
@@ -11,8 +11,8 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    # هذه الرسالة ستظهر لك عند فتح الرابط في المتصفح
-    return "✅  البوت شغال ومستيقظ بفضل الله ثم بفضل UptimeRobot"
+        # هذه الرسالة ستظهر لك عند فتح الرابط في المتصفح
+    return render_template("login.html")
 
 def run():
     port = int(os.environ.get('PORT', 8080))
