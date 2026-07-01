@@ -6,6 +6,7 @@ import asyncio
 from datetime import datetime
 import pytz
 
+import requests as http_requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from keep_alive import keep_alive
@@ -67,9 +68,45 @@ def update_user_state(user_id, state):
 # --- 3. الإعدادات ---
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8871655491:AAEWD5WQxJUeBBngKxe8u2OJonKcVsQo4sg")
 GROUP_ID = int(os.environ.get("TEACHERS_GROUP_ID", "-1004344713055"))
+# رابط لوحة الويب ومفتاح API للربط
+WEB_DASHBOARD_URL = os.environ.get("WEB_DASHBOARD_URL", "")
+BOT_API_KEY = os.environ.get("BOT_API_KEY", "quran-circle-bot-key-2024")
 
 waiting_for_reply = {}
 pending_user_actions = {}
+
+# --- دالة إرسال التسميع إلى لوحة الويب ---
+def push_to_web_dashboard(student_telegram_id, student_name, submission_type, file_id=None, text_content=None, duration=None):
+    """إرسال التسميع الجديد إلى لوحة الويب عبر API"""
+    if not WEB_DASHBOARD_URL:
+        logger.info("[Web Dashboard] URL not configured, skipping push.")
+        return
+    try:
+        # تحويل نوع التسميع للصيغة المتوافقة مع لوحة الويب
+        type_map = {
+            "حفظ": "hifz",
+            "مراجعة": "murajaah",
+            "سؤال_صوتي": "question_voice",
+            "سؤال_نصي": "question_text",
+        }
+        web_type = type_map.get(submission_type, "hifz")
+        
+        payload = {
+            "studentTelegramId": student_telegram_id,
+            "studentName": student_name,
+            "submissionType": web_type,
+            "fileId": file_id,
+            "textContent": text_content,
+            "duration": duration,
+            "apiKey": BOT_API_KEY,
+        }
+        resp = http_requests.post(f"{WEB_DASHBOARD_URL}/api/bot/submission", json=payload, timeout=10)
+        if resp.status_code == 200:
+            logger.info(f"[Web Dashboard] Submission pushed successfully for {student_name}")
+        else:
+            logger.warning(f"[Web Dashboard] Push failed: {resp.status_code} - {resp.text}")
+    except Exception as e:
+        logger.error(f"[Web Dashboard] Error pushing submission: {e}")
 
 # --- 4. لوحات المفاتيح الثابتة (Reply Keyboard) ---
 def get_main_menu_keyboard():
@@ -133,7 +170,7 @@ async def handle_text(update: Update, context):
             await update.message.reply_text("الرجاء كتابة سؤالك النصي الآن. ✍️", reply_markup=get_question_type_keyboard())
             update_user_state(user_id, "awaiting_text_question")
         elif user and user.get("state") == "awaiting_text_question":
-            pending_user_actions[user_id] = {"type": "question", "subtype": "سؤال_نصي", "text_content": text, "file_id": None, "original_message_id": update.message.message_id}
+            pending_user_actions[user_id] = {"type": "question", "subtype": "سؤال_نصي", "text_content": text, "file_id": None, "original_message_id": update.message.message_id, "duration": None}
             await update.message.reply_text("وصلني سؤالك النصي، هل تودين إرساله؟", 
                                             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ إرسال", callback_data="confirm_send")], [InlineKeyboardButton("❌ إلغاء", callback_data="confirm_resend")]]))
             update_user_state(user_id, "awaiting_confirmation")
@@ -161,7 +198,8 @@ async def handle_voice(update: Update, context):
     if chat_type == "private":
         if user and user.get("state") in ["awaiting_hifz_submission", "awaiting_murajaah_submission", "awaiting_voice_question"]:
             sub_type = "حفظ" if user["state"] == "awaiting_hifz_submission" else "مراجعة" if user["state"] == "awaiting_murajaah_submission" else "سؤال_صوتي"
-            pending_user_actions[user_id] = {"type": "submission" if "submission" in user["state"] else "question", "subtype": sub_type, "file_id": update.message.voice.file_id, "text_content": None, "original_message_id": update.message.message_id}
+            voice_duration = update.message.voice.duration if update.message.voice else None
+            pending_user_actions[user_id] = {"type": "submission" if "submission" in user["state"] else "question", "subtype": sub_type, "file_id": update.message.voice.file_id, "text_content": None, "original_message_id": update.message.message_id, "duration": voice_duration}
             await update.message.reply_text("وصلني تسجيلك، يمكنك المعاينة قبل الإرسال.", 
                                             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ إرسال للمعلمة", callback_data="confirm_send")], [InlineKeyboardButton("❌ إعادة التسجيل", callback_data="confirm_resend")]]))
             update_user_state(user_id, "awaiting_confirmation")
@@ -213,6 +251,16 @@ async def handle_callback(update: Update, context):
             
             await query.edit_message_text("✅ تم الإرسال للمعلمة بنجاح.")
             update_user_state(user_id, "main_menu")
+            
+            # إرسال التسميع إلى لوحة الويب أيضاً
+            push_to_web_dashboard(
+                student_telegram_id=user_id,
+                student_name=user['name'],
+                submission_type=action['subtype'],
+                file_id=action['file_id'],
+                text_content=action['text_content'],
+                duration=action.get('duration')
+            )
 
     elif callback_data == "confirm_resend":
         user_id = query.from_user.id
