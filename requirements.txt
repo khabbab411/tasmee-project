@@ -2,3 +2,4 @@ python-telegram-bot==22.1
 flask
 pytz
 requests
+httpx
