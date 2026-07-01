@@ -1,82 +1,91 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة المعلمات</title>
 
-    <style>
-        *{
-            margin:0;
-            padding:0;
-            box-sizing:border-box;
-            font-family:Tahoma,sans-serif;
-        }
+<meta charset="UTF-8">
 
-        body{
-            background:#f4f6f9;
-            display:flex;
-            justify-content:center;
-            align-items:center;
-            height:100vh;
-        }
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-        .card{
-            background:white;
-            width:360px;
-            padding:35px;
-            border-radius:18px;
-            box-shadow:0 10px 25px rgba(0,0,0,.12);
-        }
+<title>مقرأة زاد الفرقان</title>
 
-        h1{
-            text-align:center;
-            color:#1f2937;
-            margin-bottom:8px;
-        }
+<style>
 
-        p{
-            text-align:center;
-            color:#666;
-            margin-bottom:30px;
-        }
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Tahoma,sans-serif;
+}
 
-        input{
-            width:100%;
-            padding:12px;
-            border:1px solid #ddd;
-            border-radius:10px;
-            margin-bottom:15px;
-            font-size:15px;
-        }
+body{
+background:#f3f5f7;
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+}
 
-        input:focus{
-            outline:none;
-            border-color:#2b7cff;
-        }
+.card{
+width:380px;
+background:#fff;
+padding:35px;
+border-radius:18px;
+box-shadow:0 10px 25px rgba(0,0,0,.1);
+}
 
-        button{
-            width:100%;
-            padding:12px;
-            border:none;
-            border-radius:10px;
-            background:#2b7cff;
-            color:white;
-            font-size:16px;
-            cursor:pointer;
-        }
+h1{
+text-align:center;
+margin-bottom:8px;
+}
 
-        button:hover{
-            background:#1e63d6;
-        }
+.subtitle{
+text-align:center;
+margin-bottom:25px;
+color:#666;
+}
 
-        .footer{
-            text-align:center;
-            margin-top:20px;
-            color:#888;
-            font-size:13px;
-        }
-    </style>
+input{
+width:100%;
+padding:12px;
+margin-bottom:15px;
+border-radius:10px;
+border:1px solid #ddd;
+font-size:15px;
+}
+
+button{
+width:100%;
+padding:12px;
+border:none;
+border-radius:10px;
+background:#0b6efd;
+color:white;
+font-size:16px;
+cursor:pointer;
+}
+
+button:hover{
+background:#0958c9;
+}
+
+.error{
+background:#ffe5e5;
+color:#b00020;
+padding:10px;
+border-radius:8px;
+margin-bottom:15px;
+text-align:center;
+}
+
+.footer{
+margin-top:20px;
+text-align:center;
+font-size:13px;
+color:#888;
+}
+
+</style>
 
 </head>
 
@@ -84,21 +93,49 @@
 
 <div class="card">
 
-<h1>📖 مقرأة القرآن</h1>
+<h1>📖</h1>
 
-<p>لوحة المعلمات</p>
+<h2 style="text-align:center;">مقرأة زاد الفرقان</h2>
 
-<form>
+<p class="subtitle">
+
+لوحة المعلمين
+
+</p>
+
+{% if error %}
+
+<div class="error">
+
+{{ error }}
+
+</div>
+
+{% endif %}
+
+<form method="POST">
 
 <input
+
 type="text"
-placeholder="اسم المستخدم">
+
+name="username"
+
+placeholder="اسم المستخدم"
+
+required>
 
 <input
-type="password"
-placeholder="كلمة المرور">
 
-<button>
+type="password"
+
+name="password"
+
+placeholder="كلمة المرور"
+
+required>
+
+<button type="submit">
 
 تسجيل الدخول
 
@@ -108,11 +145,12 @@ placeholder="كلمة المرور">
 
 <div class="footer">
 
-الإصدار الأول
+الإصدار 0.3
 
 </div>
 
 </div>
 
 </body>
+
 </html>
