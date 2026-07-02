@@ -1,7 +1,6 @@
 import logging
 import os
 import time
-import sqlite3
 import asyncio
 from datetime import datetime
 import pytz
@@ -9,60 +8,14 @@ import pytz
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from keep_alive import keep_alive
+from database import get_connection, init_database
 
 # 1. إعداد السجلات
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- 2. إعداد قاعدة البيانات ---
-DATABASE_NAME = 'users.db'
+# --- 2. إعدادات المنطقة الزمنية ---
 MECCA_TIMEZONE = pytz.timezone('Asia/Riyadh')
-
-def init_db():
-    conn = sqlite3.connect(DATABASE_NAME)
-    c = conn.cursor()
-    c.execute('PRAGMA foreign_keys = ON')
-    c.execute('''CREATE TABLE IF NOT EXISTS students
-                 (user_id INTEGER PRIMARY KEY, name TEXT, state TEXT, last_submission_date TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS submissions
-                 (submission_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  user_id INTEGER,
-                  submission_type TEXT,
-                  file_id TEXT,
-                  text_content TEXT,
-                  timestamp TEXT,
-                  status TEXT,
-                  teacher_reply_type TEXT,
-                  teacher_reply_content TEXT,
-                  original_message_id INTEGER,
-                  group_message_id INTEGER,
-                  FOREIGN KEY (user_id) REFERENCES students(user_id))''')
-    conn.commit()
-    conn.close()
-
-def save_user(user_id, name, state):
-    conn = sqlite3.connect(DATABASE_NAME)
-    c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO students (user_id, name, state) VALUES (?, ?, ?)", (user_id, name, state))
-    conn.commit()
-    conn.close()
-
-def get_user(user_id):
-    conn = sqlite3.connect(DATABASE_NAME)
-    c = conn.cursor()
-    c.execute("SELECT name, state FROM students WHERE user_id=?", (user_id,))
-    row = c.fetchone()
-    conn.close()
-    if row:
-        return {"name": row[0], "state": row[1]}
-    return None
-
-def update_user_state(user_id, state):
-    conn = sqlite3.connect(DATABASE_NAME)
-    c = conn.cursor()
-    c.execute("UPDATE students SET state=? WHERE user_id=?", (state, user_id))
-    conn.commit()
-    conn.close()
 
 # --- 3. الإعدادات ---
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8871655491:AAEWD5WQxJUeBBngKxe8u2OJonKcVsQo4sg")
@@ -71,7 +24,41 @@ GROUP_ID = int(os.environ.get("TEACHERS_GROUP_ID", "-1004344713055"))
 waiting_for_reply = {}
 pending_user_actions = {}
 
-# --- 4. لوحات المفاتيح الثابتة (Reply Keyboard) ---
+# --- 4. دوال قاعدة البيانات (PostgreSQL) ---
+
+def save_user(user_id, name, state):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO students (user_id, name, state) 
+        VALUES (%s, %s, %s)
+        ON CONFLICT (user_id) DO UPDATE SET name = %s, state = %s
+    """, (user_id, name, state, name, state))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def get_user(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT name, state FROM students WHERE user_id = %s", (user_id,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if row:
+        return {"name": row["name"], "state": row["state"]}
+    return None
+
+def update_user_state(user_id, state):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE students SET state = %s WHERE user_id = %s", (state, user_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# --- 5. لوحات المفاتيح الثابتة (Reply Keyboard) ---
+
 def get_main_menu_keyboard():
     keyboard = [[KeyboardButton("🎤 إرسال تسميع"), KeyboardButton("❓ سؤال المعلم")]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -84,7 +71,8 @@ def get_question_type_keyboard():
     keyboard = [[KeyboardButton("🎙️ سؤال صوتي"), KeyboardButton("✍️ سؤال نصي")], [KeyboardButton("🔙 رجوع للقائمة الرئيسية")]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# --- 5. معالجات البوت ---
+# --- 6. معالجات البوت ---
+
 async def start(update: Update, context):
     user_id = update.effective_user.id
     if update.effective_chat.type == "private":
@@ -134,7 +122,7 @@ async def handle_text(update: Update, context):
             update_user_state(user_id, "awaiting_text_question")
         elif user and user.get("state") == "awaiting_text_question":
             pending_user_actions[user_id] = {"type": "question", "subtype": "سؤال_نصي", "text_content": text, "file_id": None, "original_message_id": update.message.message_id}
-            await update.message.reply_text("وصلني سؤالك النصي، هل تودين إرساله؟", 
+            await update.message.reply_text("وصلني سؤالك النصي، هل تودين إرساله?", 
                                             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ إرسال", callback_data="confirm_send")], [InlineKeyboardButton("❌ إلغاء", callback_data="confirm_resend")]]))
             update_user_state(user_id, "awaiting_confirmation")
 
@@ -144,10 +132,11 @@ async def handle_text(update: Update, context):
             data = waiting_for_reply[teacher_id]
             if data["type"] == "text":
                 await context.bot.send_message(chat_id=data["student_id"], text=f"💌 وصلك رد من المعلمة بخصوص: [{data['submission_type']}]\n\n{text}")
-                conn = sqlite3.connect(DATABASE_NAME)
-                c = conn.cursor()
-                c.execute("UPDATE submissions SET status='replied', teacher_reply_type='text', teacher_reply_content=? WHERE submission_id=?", (text, data["submission_id"]))
+                conn = get_connection()
+                cur = conn.cursor()
+                cur.execute("UPDATE submissions SET status='replied', teacher_reply_type='text', teacher_reply_content=%s WHERE submission_id=%s", (text, data["submission_id"]))
                 conn.commit()
+                cur.close()
                 conn.close()
                 await update.message.reply_text(f"✅ تم إرسال الرد النصي إلى {data['student_name']}")
                 del waiting_for_reply[teacher_id]
@@ -173,10 +162,11 @@ async def handle_voice(update: Update, context):
             if data["type"] == "voice":
                 caption = f"💌 وصلك رد صوتي من المعلمة بخصوص: [{data['submission_type']}]"
                 await context.bot.send_voice(chat_id=data["student_id"], voice=update.message.voice.file_id, caption=caption)
-                conn = sqlite3.connect(DATABASE_NAME)
-                c = conn.cursor()
-                c.execute("UPDATE submissions SET status='replied', teacher_reply_type='voice', teacher_reply_content=? WHERE submission_id=?", (update.message.voice.file_id, data["submission_id"]))
+                conn = get_connection()
+                cur = conn.cursor()
+                cur.execute("UPDATE submissions SET status='replied', teacher_reply_type='voice', teacher_reply_content=%s WHERE submission_id=%s", (update.message.voice.file_id, data["submission_id"]))
                 conn.commit()
+                cur.close()
                 conn.close()
                 await update.message.reply_text(f"✅ تم إرسال الرد الصوتي إلى {data['student_name']}")
                 del waiting_for_reply[teacher_id]
@@ -191,18 +181,21 @@ async def handle_callback(update: Update, context):
         user = get_user(user_id)
         if user_id in pending_user_actions:
             action = pending_user_actions.pop(user_id)
-            conn = sqlite3.connect(DATABASE_NAME)
-            c = conn.cursor()
-            # حفظ الوقت بصيغة ISO وتاريخ اليوم بشكل منفصل لسهولة الإحصاء
+            conn = get_connection()
+            cur = conn.cursor()
             timestamp = datetime.now(MECCA_TIMEZONE).isoformat()
-            c.execute("INSERT INTO submissions (user_id, submission_type, file_id, text_content, timestamp, status, original_message_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                      (user_id, action["subtype"], action["file_id"], action["text_content"], timestamp, 'pending', action["original_message_id"]))
-            sub_id = c.lastrowid
+            cur.execute("""
+                INSERT INTO submissions 
+                (user_id, submission_type, file_id, text_content, timestamp, status, original_message_id) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING submission_id
+            """, (user_id, action["subtype"], action["file_id"], action["text_content"], timestamp, 'pending', action["original_message_id"]))
+            sub_id = cur.fetchone()["submission_id"]
             conn.commit()
+            cur.close()
             conn.close()
             
             title = "🎤 تسميع جديد" if action['type'] == 'submission' else "❓ سؤال جديد"
-            # إزالة الـ ID من الكابشن كما طلب المستخدم
             caption = f"{title} - {action['subtype']}\nالطالبة: {user['name']}"
             markup = InlineKeyboardMarkup([[InlineKeyboardButton("رد نصي ✍️", callback_data=f"r_t_{sub_id}"), InlineKeyboardButton("رد صوتي 🎙️", callback_data=f"r_v_{sub_id}")]])
             
@@ -224,14 +217,19 @@ async def handle_callback(update: Update, context):
         parts = callback_data.split("_")
         sub_id = int(parts[2])
         r_type = "text" if parts[1] == "t" else "voice"
-        conn = sqlite3.connect(DATABASE_NAME)
-        c = conn.cursor()
-        c.execute("SELECT s.user_id, s.name, sub.submission_type FROM submissions sub JOIN students s ON sub.user_id = s.user_id WHERE sub.submission_id=?", (sub_id,))
-        row = c.fetchone()
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT s.user_id, s.name, sub.submission_type 
+            FROM submissions sub JOIN students s ON sub.user_id = s.user_id 
+            WHERE sub.submission_id = %s
+        """, (sub_id,))
+        row = cur.fetchone()
+        cur.close()
         conn.close()
         if row:
-            waiting_for_reply[query.from_user.id] = {"student_id": row[0], "student_name": row[1], "submission_id": sub_id, "submission_type": row[2], "type": r_type}
-            msg = f"⏳ بانتظار الرد {'النصي' if r_type == 'text' else 'الصوتي'} لـ {row[1]}..."
+            waiting_for_reply[query.from_user.id] = {"student_id": row["user_id"], "student_name": row["name"], "submission_id": sub_id, "submission_type": row["submission_type"], "type": r_type}
+            msg = f"⏳ بانتظار الرد {'النصي' if r_type == 'text' else 'الصوتي'} لـ {row['name']}..."
             if query.message.voice:
                 await query.edit_message_caption(caption=f"{query.message.caption}\n\n{msg}")
             else:
@@ -239,12 +237,16 @@ async def handle_callback(update: Update, context):
 
 async def report_command(update: Update, context):
     if update.effective_chat.id != GROUP_ID: return
-    conn = sqlite3.connect(DATABASE_NAME)
-    c = conn.cursor()
-    # جلب إحصائيات اليوم بتوقيت مكة المكرمة
+    conn = get_connection()
+    cur = conn.cursor()
     today_prefix = datetime.now(MECCA_TIMEZONE).strftime('%Y-%m-%d')
-    c.execute("SELECT s.name, sub.submission_type FROM submissions sub JOIN students s ON sub.user_id = s.user_id WHERE sub.timestamp LIKE ?", (f"{today_prefix}%",))
-    rows = c.fetchall()
+    cur.execute("""
+        SELECT s.name, sub.submission_type 
+        FROM submissions sub JOIN students s ON sub.user_id = s.user_id 
+        WHERE sub.timestamp LIKE %s
+    """, (f"{today_prefix}%",))
+    rows = cur.fetchall()
+    cur.close()
     conn.close()
     
     if not rows:
@@ -253,8 +255,10 @@ async def report_command(update: Update, context):
         
     stats = {}
     total_submissions = 0
-    for name, stype in rows:
+    for row in rows:
         total_submissions += 1
+        name = row["name"]
+        stype = row["submission_type"]
         if name not in stats: stats[name] = {}
         stats[name][stype] = stats[name].get(stype, 0) + 1
     
@@ -268,7 +272,7 @@ async def report_command(update: Update, context):
     await update.message.reply_text(report)
 
 def main():
-    init_db()
+    init_database()
     keep_alive()
     time.sleep(20)
     app = Application.builder().token(TOKEN).build()
