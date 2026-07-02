@@ -2,13 +2,18 @@ from flask import Flask
 from threading import Thread
 import logging
 import os
+
 from web.routes import register_routes
+from database import init_database
 
 log = logging.getLogger("werkzeug")
 log.setLevel(logging.ERROR)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "zadaalfurqan-secret-key")
+
+# إنشاء الجداول قبل تشغيل الموقع
+init_database()
 
 register_routes(app)
 
