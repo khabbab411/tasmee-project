@@ -1,3 +1,5 @@
-python-telegram-bot==22.1
-flask
+python-telegram-bot
+Flask
+Werkzeug
 pytz
+psycopg2-binary
