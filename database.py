@@ -531,3 +531,29 @@ def get_all_teachers(active_only: bool = True) -> List[Dict[str, Any]]:
     finally:
         if conn:
             conn.close()
+
+def update_group_message_id(submission_id: int, group_message_id: int) -> None:
+    """حفظ رقم رسالة المجموعة"""
+    conn = None
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE submissions
+            SET group_message_id = %s
+            WHERE submission_id = %s
+            """,
+            (group_message_id, submission_id)
+        )
+        conn.commit()
+        cur.close()
+        logger.info("تم حفظ group_message_id للتسميع %s", submission_id)
+    except Exception:
+        logger.exception("فشل حفظ group_message_id للتسميع %s", submission_id)
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            conn.close()
