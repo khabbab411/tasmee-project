@@ -557,3 +557,29 @@ def update_group_message_id(submission_id: int, group_message_id: int) -> None:
     finally:
         if conn:
             conn.close()
+
+
+def get_all_submissions():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            sub.submission_id,
+            s.name,
+            sub.submission_type,
+            sub.file_id,
+            sub.timestamp,
+            sub.status
+        FROM submissions sub
+        JOIN students s
+        ON sub.user_id = s.user_id
+        ORDER BY sub.timestamp DESC
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return rows
