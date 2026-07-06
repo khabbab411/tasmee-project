@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>التسميعات</title>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+</head>
+
+<body>
+
+<h2>📖 جميع التسميعات</h2>
+
+<table border="1" cellpadding="10">
+
+<tr>
+<th>الطالب</th>
+<th>النوع</th>
+<th>الوقت</th>
+<th>الحالة</th>
+<th></th>
+</tr>
+
+{% for s in submissions %}
+
+<tr>
+
+<td>{{ s.name }}</td>
+
+<td>{{ s.submission_type }}</td>
+
+<td>{{ s.timestamp }}</td>
+
+<td>{{ s.status }}</td>
+
+<td>
+
+<a href="/submission/{{ s.submission_id }}">
+
+فتح
+
+</a>
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</table>
+
+</body>
+
+</html>
