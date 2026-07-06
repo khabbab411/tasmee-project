@@ -2,6 +2,8 @@ from flask import render_template, request, redirect, url_for, session
 
 from web.auth import authenticate
 
+from database import get_all_submissions
+
 
 def register_routes(app):
 
@@ -113,6 +115,19 @@ p{{color:red}}
         if "teacher_id" not in session:
             return redirect(url_for("login"))
         return "<h2>📊 صفحة الإحصائيات (قريباً)</h2>"
+
+    @app.route("/submissions")
+def submissions():
+
+    if "teacher_id" not in session:
+        return redirect(url_for("login"))
+
+    rows = get_all_submissions()
+
+    return render_template(
+        "submissions.html",
+        submissions=rows
+    )
 
     @app.route("/logout")
     def logout():
