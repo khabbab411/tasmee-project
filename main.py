@@ -285,7 +285,7 @@ def main():
     app.add_handler(MessageHandler(filters.VOICE & filters.Chat(GROUP_ID), handle_voice))
     while True:
         try:
-            app.run_polling(drop_pending_updates=True, allowed_updates=["message", "callback_query"])
+            app.run_polling(drop_pending_updates=True, close_loop=False)
         except Exception as e:
             logger.error(f"Error: {e}")
             time.sleep(5)
