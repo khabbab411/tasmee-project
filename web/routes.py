@@ -30,7 +30,7 @@ def register_routes(app):
 
             error = "اسم المستخدم أو كلمة المرور غير صحيحة."
 
-        return "LOGIN PAGE"
+        return render_template("login.html", error=error)
 
     @app.route("/dashboard")
     def dashboard():
