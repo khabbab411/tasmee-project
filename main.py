@@ -1,6 +1,7 @@
 import logging
 import os
-import asyncio
+import uuid
+from pathlib import Path
 from datetime import datetime
 import pytz
 
@@ -29,6 +30,10 @@ MECCA_TIMEZONE = pytz.timezone('Asia/Riyadh')
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 GROUP_ID = int(os.environ.get("TEACHERS_GROUP_ID", "-1004344713055"))
 
+# مجلد حفظ الملفات الصوتية
+VOICE_FOLDER = Path("data/voices")
+VOICE_FOLDER.mkdir(parents=True, exist_ok=True)
+
 # تخزين مؤقت
 waiting_for_reply = {}
 pending_user_actions = {}
@@ -48,6 +53,13 @@ def get_question_type_keyboard():
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 # ========== دوال مساعدة ==========
+
+async def save_voice_file(bot, file_id):
+    telegram_file = await bot.get_file(file_id)
+    filename = f"{uuid.uuid4()}.ogg"
+    filepath = VOICE_FOLDER / filename
+    await telegram_file.download_to_drive(str(filepath))
+    return filename
 
 async def send_teacher_reply(context, student_id, submission_id, submission_type, student_name, reply_type, reply_content):
     """إرسال رد المعلم للطالب وتحديث قاعدة البيانات"""
@@ -226,11 +238,19 @@ async def handle_callback(update: Update, context):
             if user_id in pending_user_actions:
                 action = pending_user_actions.pop(user_id)
                 
+                # حفظ الملف الصوتي إذا وجد
+                saved_voice = None
+                if action["file_id"]:
+                    saved_voice = await save_voice_file(
+                        context.bot,
+                        action["file_id"]
+                    )
+                
                 # حفظ التسميع في قاعدة البيانات
                 submission_id = save_submission(
                     user_id, 
                     action["subtype"], 
-                    action["file_id"], 
+                    saved_voice, 
                     action["text_content"], 
                     action["original_message_id"]
                 )
