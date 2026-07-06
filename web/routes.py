@@ -30,7 +30,35 @@ def register_routes(app):
 
             error = "اسم المستخدم أو كلمة المرور غير صحيحة."
 
-        return render_template("login.html", error=error)
+        return f"""
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>مقرأة زاد الفرقان</title>
+<style>
+body{{font-family:Tahoma;background:#f5f5f5;text-align:center;margin-top:80px}}
+form{{display:inline-block;background:white;padding:25px;border-radius:10px}}
+input{{display:block;width:250px;padding:10px;margin:10px 0}}
+button{{padding:10px 20px}}
+p{{color:red}}
+</style>
+</head>
+<body>
+
+<h2>📖 مقرأة زاد الفرقان</h2>
+
+<form method="POST">
+<input name="username" placeholder="اسم المستخدم">
+<input type="password" name="password" placeholder="كلمة المرور">
+<button type="submit">تسجيل الدخول</button>
+</form>
+
+<p>{error or ""}</p>
+
+</body>
+</html>
+"""
 
     @app.route("/dashboard")
     def dashboard():
