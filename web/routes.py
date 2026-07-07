@@ -106,18 +106,90 @@ body{{margin:0;font-family:Tahoma;background:#f3f5f7}}
 </html>
 """
 
-    @app.route("/submissions")
-    def submissions():
+    @app.route("/submission/<int:submission_id>")
+def submission(submission_id):
 
-        if "teacher_id" not in session:
-            return redirect(url_for("login"))
+    if "teacher_id" not in session:
+        return redirect(url_for("login"))
 
-        rows = get_all_submissions()
+    s = get_submission_by_id(submission_id)
 
-        return render_template(
-            "submissions.html",
-            submissions=rows
-        )
+    if not s:
+        return "التسميع غير موجود"
+
+    return f"""
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+<meta charset="UTF-8">
+<title>التسميع</title>
+
+<style>
+
+body{{font-family:Tahoma;background:#f5f5f5;padding:40px}}
+
+.card{{
+background:white;
+padding:20px;
+border-radius:10px;
+max-width:700px;
+margin:auto;
+}}
+
+textarea{{
+width:100%;
+height:180px;
+margin-top:15px;
+}}
+
+button{{
+padding:12px 25px;
+margin-top:15px;
+}}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="card">
+
+<h2>{s["name"]}</h2>
+
+<p><b>النوع:</b> {s["submission_type"]}</p>
+
+<p><b>الحالة:</b> {s["status"]}</p>
+
+<p><b>الوقت:</b> {s["timestamp"]}</p>
+
+<hr>
+
+<p>معرف ملف تيليجرام:</p>
+
+<pre>{s["file_id"] or ""}</pre>
+
+<hr>
+
+<form>
+
+<textarea placeholder="اكتب رد المعلمة هنا..."></textarea>
+
+<br>
+
+<button disabled>
+إرسال الرد (سنفعله بالخطوة التالية)
+</button>
+
+</form>
+
+</div>
+
+</body>
+
+</html>
+"""
 
     @app.route("/students")
     def students():
