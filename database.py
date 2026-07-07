@@ -583,3 +583,26 @@ def get_all_submissions():
     conn.close()
 
     return rows
+
+def get_submission_by_id(submission_id: int):
+    """جلب تسميع واحد مع بيانات الطالب"""
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            sub.*,
+            s.name
+        FROM submissions sub
+        JOIN students s
+            ON sub.user_id = s.user_id
+        WHERE sub.submission_id = %s
+    """, (submission_id,))
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    return row
+
