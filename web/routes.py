@@ -107,17 +107,13 @@ body{{margin:0;font-family:Tahoma;background:#f3f5f7}}
 """
 
     @app.route("/submission/<int:submission_id>")
-def submission(submission_id):
-
-    if "teacher_id" not in session:
-        return redirect(url_for("login"))
-
-    s = get_submission_by_id(submission_id)
-
-    if not s:
-        return "التسميع غير موجود"
-
-    return f"""
+    def submission(submission_id):
+        if "teacher_id" not in session:
+            return redirect(url_for("login"))
+        s = get_submission_by_id(submission_id)
+        if not s:
+            return "التسميع غير موجود"
+        return f"""
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
