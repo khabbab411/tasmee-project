@@ -1,7 +1,6 @@
 from flask import render_template, request, redirect, url_for, session
-
 from web.auth import authenticate
-from database import get_all_submissions
+from database import get_all_submissions, get_submission_by_id
 
 
 def register_routes(app):
