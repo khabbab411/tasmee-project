@@ -187,6 +187,16 @@ margin-top:15px;
 </html>
 """
 
+    @app.route("/submissions")
+    def submissions():
+        if "teacher_id" not in session:
+            return redirect(url_for("login"))
+        rows = get_all_submissions()
+        return render_template(
+            "submissions.html",
+            submissions=rows
+        )
+
     @app.route("/students")
     def students():
 
