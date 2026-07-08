@@ -9,7 +9,11 @@ from database import init_database
 log = logging.getLogger("werkzeug")
 log.setLevel(logging.ERROR)
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    template_folder="web/templates",
+    static_folder="web/static"
+)
 app.secret_key = os.environ.get("SECRET_KEY", "zadaalfurqan-secret-key")
 
 # إنشاء الجداول قبل تشغيل الموقع
