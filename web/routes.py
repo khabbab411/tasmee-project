@@ -215,11 +215,17 @@ margin-top:15px;
 
     @app.route("/voices/<filename>")
     def voices(filename):
+
         if "teacher_id" not in session:
             return redirect(url_for("login"))
 
+        filepath = os.path.join("data", "voices", filename)
+
+        print("VOICE PATH:", filepath)
+        print("EXISTS:", os.path.exists(filepath))
+
         return send_from_directory(
-            os.path.join(os.getcwd(), "data/voices"),
+            "data/voices",
             filename
         )
 
