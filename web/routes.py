@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, session
+from flask import render_template, request, redirect, url_for, session, send_from_directory
 from web.auth import authenticate
 from database import get_all_submissions, get_submission_by_id
 import os
@@ -163,8 +163,11 @@ margin-top:15px;
 
 <hr>
 
-<p><b>الصوت:</b></p>
-{( f'''<audio controls style="width:100%"><source src="https://api.telegram.org/file/bot{os.environ.get("BOT_TOKEN")}/{s["file_id"]}"></audio>''' ) if s["file_id"] else "لا يوجد ملف صوتي"}
+{% if s["file_id"] %}
+<audio controls style="width:100%">
+    <source src="/voices/{{ s['file_id'] }}" type="audio/ogg">
+</audio>
+{% endif %}
 
 <hr>
 
@@ -212,6 +215,14 @@ margin-top:15px;
             return redirect(url_for("login"))
 
         return "<h2 style='text-align:center'>📊 صفحة الإحصائيات (قريباً)</h2>"
+
+    @app.route("/voices/<filename>")
+    def voices(filename):
+        if "teacher_id" not in session:
+            return redirect(url_for("login"))
+        return send_from_directory(
+            "data/voices", filename
+        )
 
     @app.route("/logout")
     def logout():
