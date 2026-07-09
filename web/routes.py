@@ -112,6 +112,10 @@ body{{margin:0;font-family:Tahoma;background:#f3f5f7}}
         if "teacher_id" not in session:
             return redirect(url_for("login"))
         s = get_submission_by_id(submission_id)
+
+        print("FILE NAME:", s["file_id"])
+        print("FILE EXISTS:", os.path.exists("data/voices/" + s["file_id"]) if s["file_id"] else "NO FILE")
+
         if not s:
             return "التسميع غير موجود"
         return f"""
