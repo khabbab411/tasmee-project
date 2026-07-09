@@ -1,6 +1,7 @@
 from flask import render_template, request, redirect, url_for, session
 from web.auth import authenticate
 from database import get_all_submissions, get_submission_by_id
+import os
 
 
 def register_routes(app):
@@ -162,9 +163,8 @@ margin-top:15px;
 
 <hr>
 
-<p>معرف ملف تيليجرام:</p>
-
-<pre>{s["file_id"] or ""}</pre>
+<p><b>الصوت:</b></p>
+{( f'''<audio controls style="width:100%"><source src="https://api.telegram.org/file/bot{os.environ.get("BOT_TOKEN")}/{s["file_id"]}"></audio>''' ) if s["file_id"] else "لا يوجد ملف صوتي"}
 
 <hr>
 
